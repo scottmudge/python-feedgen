@@ -8,14 +8,12 @@
     :license: FreeBSD and LGPL, see license.* for more details.
 '''
 
+from lxml import etree
 from datetime import datetime
-
 import dateutil.parser
 import dateutil.tz
-from lxml import etree
-
-from feedgen.compat import string_types
 from feedgen.util import ensure_format, formatRFC2822
+from feedgen.compat import string_types
 
 
 class FeedEntry(object):
@@ -202,7 +200,8 @@ class FeedEntry(object):
                 else self.__rss_content['content']
         elif self.__rss_description:
             description = etree.SubElement(entry, 'description')
-            description.text = self.__rss_description
+            string = "\n<![CDATA[\n{0}\n]]>".format(self.__rss_description.decode())
+            description.text = string.encode()
         elif self.__rss_content:
             description = etree.SubElement(entry, 'description')
             description.text = self.__rss_content['content']
@@ -223,7 +222,9 @@ class FeedEntry(object):
             comments = etree.SubElement(entry, 'comments')
             comments.text = self.__rss_comments
         if self.__rss_enclosure:
-            enclosure = etree.SubElement(entry, 'enclosure')
+            NSMAP = {'version' : self.__rss_enclosure['sparkleversion'],
+                   'dsaSignature' : self.__rss_enclosure['sparkledsaSignature']}
+            enclosure = etree.SubElement(entry, 'enclosure', nsmap=NSMAP)
             enclosure.attrib['url'] = self.__rss_enclosure['url']
             enclosure.attrib['length'] = self.__rss_enclosure['length']
             enclosure.attrib['type'] = self.__rss_enclosure['type']
@@ -303,8 +304,8 @@ class FeedEntry(object):
         return self.__atom_updated
 
     def author(self, author=None, replace=False, **kwargs):
-        '''Get or set author data. An author element is a dict containing a
-        name, an email address and a uri. Name is mandatory for ATOM, email is
+        '''Get or set autor data. An author element is a dict containing a
+        name, an email adress and a uri. Name is mandatory for ATOM, email is
         mandatory for RSS.
 
         This method can be called with:
@@ -422,7 +423,7 @@ class FeedEntry(object):
                 self.__atom_link = []
             self.__atom_link += ensure_format(
                 link,
-                set(['href', 'rel', 'type', 'hreflang', 'title', 'length']),
+                set(['href', 'rel', 'type', 'version', 'dsasignature', 'hreflang', 'title', 'length']),
                 set(['href']),
                 {'rel': ['alternate', 'enclosure', 'related', 'self', 'via']},
                 {'rel': 'alternate'})
@@ -434,6 +435,8 @@ class FeedEntry(object):
                     self.__rss_enclosure = {'url': l['href']}
                     self.__rss_enclosure['type'] = l.get('type')
                     self.__rss_enclosure['length'] = l.get('length') or '0'
+                    self.__rss_enclosure['sparkleversion'] = l.get('version') or '0.0.0.0'
+                    self.__rss_enclosure['sparkledsaSignature'] = l.get('dsasignature') or '0'
         # return the set with more information (atom)
         return self.__atom_link
 
@@ -599,7 +602,7 @@ class FeedEntry(object):
             self.__rss_comments = comments
         return self.__rss_comments
 
-    def enclosure(self, url=None, length=None, type=None):
+    def enclosure(self, url=None, length=None, type=None, dsasignature=None, version=None):
         '''Get or set the value of enclosure which describes a media object
         that is attached to the item. This is a RSS only value which is
         represented by link(rel=enclosure) in ATOM. ATOM feeds can furthermore
@@ -613,7 +616,7 @@ class FeedEntry(object):
         :returns: Data of the enclosure element.
         '''
         if url is not None:
-            self.link(href=url, rel='enclosure', type=type, length=length)
+            self.link(href=url, rel='enclosure', type=type, length=length, dsasignature=dsasignature, version=version)
         return self.__rss_enclosure
 
     def ttl(self, ttl=None):

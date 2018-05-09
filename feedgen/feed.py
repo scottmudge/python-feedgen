@@ -9,17 +9,16 @@
 
 '''
 
-import sys
+from lxml import etree
 from datetime import datetime
-
 import dateutil.parser
 import dateutil.tz
-from lxml import etree
-
-import feedgen.version
-from feedgen.compat import string_types
 from feedgen.entry import FeedEntry
 from feedgen.util import ensure_format, formatRFC2822
+import feedgen.version
+import sys
+from feedgen.compat import string_types
+
 
 _feedgen_version = feedgen.version.version_str
 
@@ -252,10 +251,10 @@ class FeedGenerator(object):
                 if ext.get('rss'):
                     nsmap.update(ext['inst'].extend_ns())
 
-        nsmap.update({'atom':  'http://www.w3.org/2005/Atom',
-                      'content': 'http://purl.org/rss/1.0/modules/content/'})
+        nsmap.update({'dc': 'http://purl.org/dc/elements/1.1/',
+                      'sparkle':  'http://www.andymatuschak.org/xml-namespaces/sparkle'})
 
-        feed = etree.Element('rss', version='2.0', nsmap=nsmap)
+        feed = etree.Element('rss', nsmap=nsmap, version='2.0')
         channel = etree.SubElement(feed, 'channel')
         if not (self.__rss_title and
                 self.__rss_link and
@@ -271,21 +270,21 @@ class FeedGenerator(object):
         link.text = self.__rss_link
         desc = etree.SubElement(channel, 'description')
         desc.text = self.__rss_description
-        for ln in self.__atom_link or []:
-            # It is recommended to include a atom self link in rss documents…
-            if ln.get('rel') == 'self':
-                selflink = etree.SubElement(
-                        channel, '{http://www.w3.org/2005/Atom}link',
-                        href=ln['href'], rel='self')
-                if ln.get('type'):
-                    selflink.attrib['type'] = ln['type']
-                if ln.get('hreflang'):
-                    selflink.attrib['hreflang'] = ln['hreflang']
-                if ln.get('title'):
-                    selflink.attrib['title'] = ln['title']
-                if ln.get('length'):
-                    selflink.attrib['length'] = ln['length']
-                break
+        # for ln in self.__atom_link or []:
+        #     # It is recommended to include a atom self link in rss documents…
+        #     if ln.get('rel') == 'self':
+        #         selflink = etree.SubElement(
+        #                 channel, '{http://www.w3.org/2005/Atom}link',
+        #                 href=ln['href'], rel='self')
+        #         if ln.get('type'):
+        #             selflink.attrib['type'] = ln['type']
+        #         if ln.get('hreflang'):
+        #             selflink.attrib['hreflang'] = ln['hreflang']
+        #         if ln.get('title'):
+        #             selflink.attrib['title'] = ln['title']
+        #         if ln.get('length'):
+        #             selflink.attrib['length'] = ln['length']
+        #         break
         if self.__rss_category:
             for cat in self.__rss_category:
                 category = etree.SubElement(channel, 'category')
@@ -303,12 +302,12 @@ class FeedGenerator(object):
         if self.__rss_copyright:
             copyright = etree.SubElement(channel, 'copyright')
             copyright.text = self.__rss_copyright
-        if self.__rss_docs:
-            docs = etree.SubElement(channel, 'docs')
-            docs.text = self.__rss_docs
-        if self.__rss_generator:
-            generator = etree.SubElement(channel, 'generator')
-            generator.text = self.__rss_generator
+        # if self.__rss_docs:
+        #     docs = etree.SubElement(channel, 'docs')
+        #     docs.text = self.__rss_docs
+        # if self.__rss_generator:
+        #     generator = etree.SubElement(channel, 'generator')
+        #     generator.text = self.__rss_generator
         if self.__rss_image:
             image = etree.SubElement(channel, 'image')
             url = etree.SubElement(image, 'url')
@@ -329,10 +328,10 @@ class FeedGenerator(object):
         if self.__rss_language:
             language = etree.SubElement(channel, 'language')
             language.text = self.__rss_language
-        if self.__rss_lastBuildDate:
-            lastBuildDate = etree.SubElement(channel, 'lastBuildDate')
-
-            lastBuildDate.text = formatRFC2822(self.__rss_lastBuildDate)
+        # if self.__rss_lastBuildDate:
+        #     lastBuildDate = etree.SubElement(channel, 'lastBuildDate')
+        #
+        #     lastBuildDate.text = formatRFC2822(self.__rss_lastBuildDate)
         if self.__rss_managingEditor:
             managingEditor = etree.SubElement(channel, 'managingEditor')
             managingEditor.text = self.__rss_managingEditor
@@ -398,7 +397,7 @@ class FeedGenerator(object):
         '''
         feed, doc = self._create_rss(extensions=extensions)
         return etree.tostring(feed, pretty_print=pretty, encoding=encoding,
-                              xml_declaration=xml_declaration)
+                              xml_declaration=xml_declaration).decode()
 
     def rss_file(self, filename, extensions=True, pretty=False,
                  encoding='UTF-8', xml_declaration=True):
@@ -414,8 +413,15 @@ class FeedGenerator(object):
             output (Default: enabled).
         '''
         feed, doc = self._create_rss(extensions=extensions)
-        doc.write(filename, pretty_print=pretty, encoding=encoding,
-                  xml_declaration=xml_declaration)
+        string = self.rss_str(pretty=pretty, extensions=extensions, encoding=encoding,xml_declaration=xml_declaration)
+        string = string.replace("xmlns:version", "sparkle:version")
+        string = string.replace("xmlns:dsaSignature", "sparkle:dsaSignature")
+        string = string.replace('&lt;', '<')
+        string = string.replace('&gt;', '>')
+        with open(filename,'w') as file:
+            file.write(string)
+        #doc.write(filename, pretty_print=pretty, encoding=encoding,
+            #      xml_declaration=xml_declaration)
 
     def title(self, title=None):
         '''Get or set the title value of the feed. It should contain a human
@@ -864,8 +870,8 @@ class FeedGenerator(object):
         for person responsible for editorial content.    This is a RSS only
         value.
 
-        :param managingEditor: Email address of the managing editor.
-        :returns: Email address of the managing editor.
+        :param managingEditor: Email adress of the managing editor.
+        :returns: Email adress of the managing editor.
         '''
         if managingEditor is not None:
             self.__rss_managingEditor = managingEditor
@@ -996,16 +1002,12 @@ class FeedGenerator(object):
             self.__rss_webMaster = webMaster
         return self.__rss_webMaster
 
-    def add_entry(self, feedEntry=None, order='prepend'):
+    def add_entry(self, feedEntry=None):
         '''This method will add a new entry to the feed. If the feedEntry
         argument is omittet a new Entry object is created automatically. This
-        is the preferred way to add new entries to a feed.
+        is the prefered way to add new entries to a feed.
 
         :param feedEntry: FeedEntry object to add.
-        :param order: If `prepend` is chosen, the entry will be inserted
-                      at the beginning of the feed. If `append` is chosen,
-                      the entry will be appended to the feed.
-                      (default: `prepend`).
         :returns: FeedEntry object created or passed to this function.
 
         Example::
@@ -1035,10 +1037,7 @@ class FeedGenerator(object):
             except ImportError:
                 pass
 
-        if order == 'prepend':
-            self.__feed_entries.insert(0, feedEntry)
-        else:
-            self.__feed_entries.append(feedEntry)
+        self.__feed_entries.insert(0, feedEntry)
         return feedEntry
 
     def add_item(self, item=None):
